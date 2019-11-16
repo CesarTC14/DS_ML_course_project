@@ -1,0 +1,7 @@
+base
+dplyr
+stringr
+lattice
+ggplot2
+caret
+rattle
