@@ -1,0 +1,170 @@
+---
+title: "Prediction on WLE Dataset"
+author: "CesarTC"
+date: "02/11/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Introduction
+
+In this project, we are going to explore the [Weight Lifting Exercise Dataset], a part of the Human Activity Recognition Project briefly described [here]. Our main objective is to create a Machine Learning strategy to accurately predict the way a group of testers are performing dumbbell biceps curls. As we can learn from the documentation, the researchers defined five possible ways of performing the exercise, one right and four wrong. That means we are dealing with a multi class classification problem.
+
+To perform the prediction, we have decided to use a random forest algorithm. This technique performs better than other multi class classification algorithms in most cases, according to the literature and open competitions such as those hold by Kaggle. We used a k-fold strategy to estimate the out of sample error rate and, finally, performed a prediction on the test dataset.
+
+## Preparing the dataset
+We start by loading the necessary packages and the test and train datasets.
+```{r, echo = FALSE, cache=TRUE}
+caminho <- 'C:/Users/CesarTC/Documents/Data Science/Practical ML'
+setwd(caminho)
+```
+```{r}
+suppressPackageStartupMessages(library(dplyr))
+suppressPackageStartupMessages(library(stringr))
+suppressPackageStartupMessages(library(caret))
+suppressPackageStartupMessages(library(rattle))
+
+download.file('https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv', 'training_set.csv')
+download.file('https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv', 'test_set.csv')
+
+train <- as_tibble(read.csv('training_set.csv'))
+test <-  as_tibble(read.csv('test_set.csv'))
+```
+
+We should have a look at the test set, just to have an idea of what kind of data we have to predict on.
+
+```{r}
+str(test)
+```
+
+As we can see, there is a lot of missing values on that dataset. So we are going to get rid of those columns and work only with the ones where we have information. After that, we are going to focus on preparing the train dataset to present only the columns with data in the test set.
+
+```{r}
+compl_test <- test[, !apply(is.na(test), 2, all)]
+compl_train <- train[, !apply(is.na(test), 2, all)]
+```
+
+It is kind of a coincidence that the last column in the test set has values, because it allowed us to use the simple code above to obtain the train dataset ready without missing the so important 'classe' variable - the one we want to predict in the test set.
+
+The first seven variables are just identifiers and should not have any explanatory power. All of the rest we are going to try and use to train our model.
+
+```{r}
+compl_train <- compl_train[,-c(1:7)]
+```
+
+## Estimating out of sample error
+
+We used k-fold technique to estimate the out of sample error of our model. We have also decided to preprocess our data with Principal Component Analysis, to reduce the dimension of the dataset we're training on. Still, the next operation is going to take a while. Also, because we are using the function train, from caret, and preprocessing with pca, and the function doing the actual work is randomForest from the equally named package, we have a conflict in one particular parameter (mtry) that raises warning messages from the randomForest function. More on that in [this post on Stack Overflow]. That, and that alone, is why we are using suppressWarnings in the call to train.
+
+```{r k_fold, cache = TRUE}
+k <- 10
+g_size <- round(length(compl_train$pitch_belt)/k, 0)
+n_adjust <- length(compl_train$pitch_belt)%%k
+
+k_group <- c(rep(1, times = g_size),
+             rep(2, times = g_size),
+             rep(3, times = g_size),
+             rep(4, times = g_size),
+             rep(5, times = g_size),
+             rep(6, times = g_size),
+             rep(7, times = g_size),
+             rep(8, times = g_size),
+             rep(9, times = g_size),
+             rep(10, times = g_size + n_adjust))
+
+
+set.seed(12345)
+
+compl_train <- compl_train %>% 
+    mutate(random_var = rnorm(length(compl_train$pitch_belt), 1, 10)) %>% 
+    arrange(random_var) %>% 
+    mutate(k_group = k_group)
+    
+fit_rf <- list()
+acc_rf <- list()
+confusion_rf <- list()
+for (i in 1:k) {
+    i <- 1
+    ds_train <- compl_train %>% 
+        filter(k_group != i) %>% 
+        select(-random_var, -k_group)
+    
+    ds_test <- compl_train %>% 
+        filter(k_group == i) %>% 
+        select(-random_var, -k_group)
+    
+    fit_rf[[i]] <- suppressWarnings(train(classe~., data = ds_train, method = 'rf',
+                         preProcess = 'pca', ntree = 300))
+    
+    predict_rf <- predict(fit_rf[[i]], newdata = ds_test)
+    
+    check_rf <- sum(predict_rf == ds_test$classe)
+    
+    acc_rf[[i]] <- check_rf/length(predict_rf)
+    confusion_rf[[i]] <- fit_rf[[i]]$finalModel$confusion
+}
+```
+
+We can now have a look on the expected out of sample error rate and the mean confusion matrix of our experiment. First, the accuracy measurement.
+
+```{r}
+acc_rf <- unlist(acc_rf)
+mean(acc_rf)
+```
+
+And now the mean confusion matrix, that took a little more coding.
+
+```{r}
+mean_conf <- matrix(nrow = dim(confusion_rf[[1]])[1], ncol = dim(confusion_rf[[1]])[2])
+elements <- list()
+for (i in 1:dim(confusion_rf[[1]])[1]) {
+    for (j in 1:dim(confusion_rf[[1]])[2] - 1) {
+        for (k in 1:length(confusion_rf)) {
+            elements[[k]] <- confusion_rf[[k]][i,j]
+        }
+        mean_conf[i,j] <- mean(unlist(elements))
+    }
+}
+
+mpe <- vector()
+for (i in 1:dim(mean_conf)[1]) {
+    mpe[i] <- mean_conf[i,i]/sum(mean_conf[i,], na.rm = TRUE)
+}
+
+
+mean_conf[,6] <- mpe
+row.names(mean_conf) <- c('A', 'B', 'C', 'D', 'E')
+colnames(mean_conf) <- c('A', 'B', 'C', 'D', 'E', 'mean_per_class_error')
+mean_conf
+```
+
+## Training the final model and predicting on the test sample
+
+Now that we have estimates of the out of sample error rate, we can use all the information available in the train dataset to train our model. After that, we'll perform the prediction in the test dataset, where we expect to get `r round(mean(acc_rf)*100, 1)`% of the classes right.
+
+```{r, cache = TRUE}
+ds_train <- compl_train %>% 
+    filter(k_group != i) %>% 
+    select(-random_var, -k_group)
+
+fit_rf <- suppressWarnings(train(classe~., data = ds_train, method = 'rf',
+                         preProcess = 'pca', ntree = 300))
+
+ds_test <- compl_test[,-c(1:7, length(compl_test))]
+
+predict_rf <- predict(fit_rf, newdata = ds_test)
+
+final <- as_tibble(cbind(ds_test, predicted_classe = predict_rf[[1]]))
+```
+
+Our prediction is stored in the dataset called 'final'. This is the distribution of the predicted variable.
+
+```{r}
+table(final$predicted_classe)
+```
+[Weight Lifting Exercise Dataset]:http://web.archive.org/web/20161224072740/http://groupware.les.inf.puc-rio.br/static/WLE/WearableComputing_weight_lifting_exercises_biceps_curl_variations.csv
+[here]:http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har
+[this post on Stack Overflow]:https://stackoverflow.com/questions/49186277/caret-method-rf-warning-message-invalid-mtry-reset-to-within-valid-rang
