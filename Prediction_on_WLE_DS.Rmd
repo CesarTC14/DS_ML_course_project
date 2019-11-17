@@ -159,7 +159,7 @@ ds_test <- compl_test[,-c(1:7, length(compl_test))]
 
 predict_rf <- predict(fit_rf, newdata = ds_test)
 
-final <- as_tibble(cbind(ds_test, predicted_classe = predict_rf[[1]]))
+final <- as_tibble(cbind(ds_test, predicted_classe = predict_rf))
 ```
 
 Our prediction is stored in the dataset called 'final'. This is the distribution of the predicted variable.

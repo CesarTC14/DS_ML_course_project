@@ -279,7 +279,7 @@ ds_test <- compl_test[,-c(1:7, length(compl_test))]
 
 predict_rf <- predict(fit_rf, newdata = ds_test)
 
-final <- as_tibble(cbind(ds_test, predicted_classe = predict_rf[[1]]))
+final <- as_tibble(cbind(ds_test, predicted_classe = predict_rf))
 ```
 
 Our prediction is stored in the dataset called 'final'. This is the distribution of the predicted variable.
@@ -291,8 +291,8 @@ table(final$predicted_classe)
 
 ```
 ## 
-##  A  B  C  D  E 
-##  0 20  0  0  0
+## A B C D E 
+## 8 7 1 1 3
 ```
 [Weight Lifting Exercise Dataset]:http://web.archive.org/web/20161224072740/http://groupware.les.inf.puc-rio.br/static/WLE/WearableComputing_weight_lifting_exercises_biceps_curl_variations.csv
 [here]:http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har
