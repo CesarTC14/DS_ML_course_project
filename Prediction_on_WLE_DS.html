@@ -584,9 +584,8 @@ mean_conf</code></pre>
 <h2>Training the final model and predicting on the test sample</h2>
 <p>Now that we have estimates of the out of sample error rate, we can use all the information available in the train dataset to train our model. After that, we’ll perform the prediction in the test dataset, where we expect to get 98.5% of the classes right.</p>
 <pre class="r"><code>ds_train &lt;- compl_train %&gt;% 
-    filter(k_group != i) %&gt;% 
-    select(-random_var, -k_group)
-
+        select(-random_var, -k_group)
+    
 fit_rf &lt;- suppressWarnings(train(classe~., data = ds_train, method = &#39;rf&#39;,
                          preProcess = &#39;pca&#39;, ntree = 300))
 

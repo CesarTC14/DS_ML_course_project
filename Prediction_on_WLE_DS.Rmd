@@ -2,7 +2,10 @@
 title: "Prediction on WLE Dataset"
 author: "CesarTC"
 date: "02/11/2019"
-output: html_document
+output: 
+  html_document: 
+    fig_caption: yes
+    keep_md: yes
 ---
 
 ```{r setup, include=FALSE}
@@ -147,9 +150,8 @@ Now that we have estimates of the out of sample error rate, we can use all the i
 
 ```{r, cache = TRUE}
 ds_train <- compl_train %>% 
-    filter(k_group != i) %>% 
-    select(-random_var, -k_group)
-
+        select(-random_var, -k_group)
+    
 fit_rf <- suppressWarnings(train(classe~., data = ds_train, method = 'rf',
                          preProcess = 'pca', ntree = 300))
 

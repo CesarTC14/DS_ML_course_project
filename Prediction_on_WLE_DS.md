@@ -270,9 +270,8 @@ Now that we have estimates of the out of sample error rate, we can use all the i
 
 ```r
 ds_train <- compl_train %>% 
-    filter(k_group != i) %>% 
-    select(-random_var, -k_group)
-
+        select(-random_var, -k_group)
+    
 fit_rf <- suppressWarnings(train(classe~., data = ds_train, method = 'rf',
                          preProcess = 'pca', ntree = 300))
 
